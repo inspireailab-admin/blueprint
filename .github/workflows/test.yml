@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   test:
     name: ${{ matrix.os }}
@@ -30,13 +34,20 @@ jobs:
         run: |
           go mod tidy
           git diff --exit-code go.mod go.sum
-        shell: bash
 
       - name: Vet
         run: go vet ./...
 
-      - name: Test with coverage
-        run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
+      - name: Test
+        # -race only on Linux: Go 1.22's -race + cgo has dyld issues
+        # on macos-latest, and we don't need three runs of the race
+        # detector anyway.
+        run: |
+          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+            go test -race -coverprofile=coverage.out -covermode=atomic ./...
+          else
+            go test -coverprofile=coverage.out -covermode=count ./...
+          fi
 
       - name: Coverage summary
         if: matrix.os == 'ubuntu-latest'
@@ -44,4 +55,3 @@ jobs:
 
       - name: Build
         run: go build -o blueprint ./
-        shell: bash
